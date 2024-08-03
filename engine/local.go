@@ -141,3 +141,7 @@ func (local *LocalEngine) GetBlock() (*types.Block, error) {
 	// TODO this currently prevents blob transactions from working
 	return engine.ExecutableDataToBlock(*envelope.ExecutionPayload, []common.Hash{}, &common.Hash{})
 }
+
+func (local *LocalEngine) LatestBlock() int {
+	return int(local.backend.BlockChain().CurrentBlock().Number.Int64())
+}

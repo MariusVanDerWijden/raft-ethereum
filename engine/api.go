@@ -7,4 +7,5 @@ import (
 type API interface {
 	NewBlock(block *types.Block) error
 	GetBlock() (*types.Block, error)
+	LatestBlock() int
 }
