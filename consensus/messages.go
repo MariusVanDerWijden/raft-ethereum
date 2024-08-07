@@ -16,6 +16,10 @@ type Message struct {
 	Message []byte
 }
 
+type MessageMarshaller interface {
+	MarshalMessage() ([]byte, error)
+}
+
 func AsMessage(type_selector byte, message any) ([]byte, error) {
 	inner, err := json.Marshal(message)
 	if err != nil {

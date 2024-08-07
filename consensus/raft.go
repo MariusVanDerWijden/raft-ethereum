@@ -138,20 +138,11 @@ func (r *RaftServer) forceElection() error {
 	log.Info("Forcing an Election", "id", r.id)
 	r.setLeader(NO_LEADER)
 	// Assemble vote for self
-	vote := Vote{
+	return r.WriteMsg(&Vote{
 		Term:         r.currentTerm + 1,
 		CandidateID:  r.id,
 		HighestBlock: r.execution.LatestBlock(),
-	}
-	msg, err := vote.MarshalMessage()
-	if err != nil {
-		return err
-	}
-	// Broadcast to peers
-	if errs := r.network.WriteMsg(msg); len(errs) != 0 {
-		return errs[0]
-	}
-	return nil
+	})
 }
 
 func (r *RaftServer) sendHeartbeat(block *engine.Block) error {
@@ -166,16 +157,11 @@ func (r *RaftServer) sendHeartbeat(block *engine.Block) error {
 		r.currentBlock = block
 	}
 
-	msg := Heartbeat{
+	return r.WriteMsg(&Heartbeat{
 		Term:     r.currentTerm,
 		LeaderID: r.id,
 		Block:    enc,
-	}
-	b, _ := msg.MarshalMessage()
-	if errs := r.network.WriteMsg(b); len(errs) != 0 {
-		return errs[0]
-	}
-	return nil
+	})
 }
 
 func (r *RaftServer) setLeader(leader int) {
@@ -185,4 +171,26 @@ func (r *RaftServer) setLeader(leader int) {
 	} else {
 		r.voteInProgress = false
 	}
+}
+
+// WriteMsg broadcasts a message via the network.
+// Returns the first error encountered during broadcast.
+func (r *RaftServer) WriteMsg(msg MessageMarshaller) error {
+	enc, err := msg.MarshalMessage()
+	if err != nil {
+		return err
+	}
+	// Broadcast to peers
+	if errs := r.network.WriteMsg(enc); len(errs) != 0 {
+		return errs[0]
+	}
+	return nil
+}
+
+func (r *RaftServer) WriteMsgToPeer(msg MessageMarshaller, peer int) error {
+	enc, err := msg.MarshalMessage()
+	if err != nil {
+		return err
+	}
+	return r.network.WriteMsgToPeer(enc, peer)
 }

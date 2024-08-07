@@ -55,14 +55,7 @@ func (r *RaftServer) handleVote(vote Vote, peer int) {
 	} else {
 		resp.Result = true
 	}
-	msg, err := resp.MarshalMessage()
-	if err != nil {
-		return
-	}
-	if err := r.network.WriteMsgToPeer(msg, peer); err != nil {
-		return
-	}
-	r.votedFor = vote.CandidateID
+	r.WriteMsgToPeer(&resp, peer)
 	r.resetTimer()
 	r.stateTransition <- struct{}{}
 }
@@ -86,12 +79,10 @@ func (r *RaftServer) tallyVote(voteResp VoteResp, peer int) {
 
 func (r *RaftServer) handleHeartbeat(heartbeat Heartbeat, peer int) error {
 	if heartbeat.Term < r.currentTerm {
-		resp := HeartbeatResp{
+		return r.WriteMsgToPeer(&HeartbeatResp{
 			Term:   r.currentTerm,
 			Result: false,
-		}
-		b, _ := resp.MarshalMessage()
-		return r.network.WriteMsgToPeer(b, peer)
+		}, peer)
 	}
 	r.setLeader(heartbeat.LeaderID)
 	r.resetTimer()
@@ -103,10 +94,8 @@ func (r *RaftServer) handleHeartbeat(heartbeat Heartbeat, peer int) error {
 		return r.execution.NewBlock(block)
 	}
 	log.Debug("Received good heartbeat", "id", r.id, "peer", peer)
-	resp := HeartbeatResp{
+	return r.WriteMsgToPeer(&HeartbeatResp{
 		Term:   r.currentTerm,
 		Result: true,
-	}
-	b, _ := resp.MarshalMessage()
-	return r.network.WriteMsgToPeer(b, peer)
+	}, peer)
 }
