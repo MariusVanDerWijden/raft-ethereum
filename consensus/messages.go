@@ -2,12 +2,11 @@ package consensus
 
 import (
 	"encoding/json"
-
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 const (
 	heartbeat_type = iota
+	heartbeat_resp_type
 	vote_type
 	vote_resp_type
 )
@@ -39,7 +38,7 @@ func (v *Vote) MarshalMessage() ([]byte, error) {
 	return AsMessage(vote_type, v)
 }
 
-type VoteResp struct{ result bool }
+type VoteResp struct{ Result bool }
 
 func (v *VoteResp) MarshalMessage() ([]byte, error) {
 	return AsMessage(vote_resp_type, v)
@@ -48,9 +47,18 @@ func (v *VoteResp) MarshalMessage() ([]byte, error) {
 type Heartbeat struct {
 	Term     int
 	LeaderID int
-	Block    *types.Block
+	Block    []byte
 }
 
 func (h *Heartbeat) MarshalMessage() ([]byte, error) {
 	return AsMessage(heartbeat_type, h)
+}
+
+type HeartbeatResp struct {
+	Term   int
+	Result bool
+}
+
+func (h *HeartbeatResp) MarshalMessage() ([]byte, error) {
+	return AsMessage(heartbeat_resp_type, h)
 }

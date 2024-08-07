@@ -1,11 +1,13 @@
 package engine
 
 import (
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/beacon/engine"
 )
 
+type Block = engine.ExecutableData
+
 type API interface {
-	NewBlock(block *types.Block) error
-	GetBlock() (*types.Block, error)
+	NewBlock(block *Block) error
+	GetBlock() (*Block, error)
 	LatestBlock() int
 }

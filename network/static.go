@@ -1,38 +1,48 @@
 package network
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 var _ = API(&StaticNetwork{})
 
+const DefaultReadDeadline = 100 * time.Millisecond
+
 type StaticNetwork struct {
 	// TODO properly lock the peers array and callbacks array
+	port      string
 	peers     []net.Conn
 	callbacks []func(message []byte, peer int)
 }
 
 func NewStaticNetwork(port string) (*StaticNetwork, error) {
-	network := StaticNetwork{}
-	listener, err := net.Listen("tcp4", port)
+	return &StaticNetwork{port: port}, nil
+}
+
+func (s *StaticNetwork) Start() error {
+	listener, err := net.Listen("tcp4", s.port)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				network.peers = append(network.peers, conn)
+				s.peers = append(s.peers, conn)
 			}
 		}
 	}()
-	go network.loop()
-
-	return &network, nil
+	go s.loop()
+	return nil
 }
 
 func (s *StaticNetwork) loop() error {
 	for {
 		for id, conn := range s.peers {
 			buffer := make([]byte, 128)
+			// give each peer 10ms to write
+			conn.SetReadDeadline(time.Now().Add(DefaultReadDeadline))
 			if _, err := conn.Read(buffer); err != nil {
 				// handle error
 			} else {

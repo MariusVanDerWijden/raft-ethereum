@@ -22,6 +22,8 @@ import (
 
 var _ = API(&LocalEngine{})
 
+var DefaultBlockBuildingTimeout = 1 * time.Second
+
 type LocalEngine struct {
 	node      *node.Node
 	backend   *eth.Ethereum
@@ -87,26 +89,31 @@ func newWithNode(stack *node.Node, conf *eth.Config, blockPeriod uint64) (*Local
 		return nil, err
 	}
 	// Reorg our chain back to genesis
-	if err := beacon.Fork(backend.BlockChain().GetCanonicalHash(0)); err != nil {
+	head := backend.BlockChain().GetCanonicalHash(0)
+	if err := beacon.Fork(head); err != nil {
 		return nil, err
 	}
 	return &LocalEngine{
-		node:      stack,
-		backend:   backend,
-		engineAPI: catalyst.NewConsensusAPI(backend),
+		node:                 stack,
+		backend:              backend,
+		engineAPI:            catalyst.NewConsensusAPI(backend),
+		currentState:         engine.ForkchoiceStateV1{HeadBlockHash: head, SafeBlockHash: head, FinalizedBlockHash: head},
+		blockBuildingTimeout: DefaultBlockBuildingTimeout,
 	}, nil
 }
 
-func (local *LocalEngine) NewBlock(block *types.Block) error {
-	payload := engine.BlockToExecutableData(block, common.Big0, []*types.BlobTxSidecar{})
+func (local *LocalEngine) NewBlock(block *Block) error {
+	if block == nil {
+		return nil
+	}
 	// Insert the block
-	if _, err := local.engineAPI.NewPayloadV4(*payload.ExecutionPayload, []common.Hash{}, &common.Hash{}); err != nil {
+	if _, err := local.engineAPI.NewPayloadV3(*block, []common.Hash{}, &common.Hash{}); err != nil {
 		return err
 	}
 	local.currentState = engine.ForkchoiceStateV1{
-		HeadBlockHash:      block.Hash(),
-		SafeBlockHash:      block.Hash(),
-		FinalizedBlockHash: block.Hash(),
+		HeadBlockHash:      block.BlockHash,
+		SafeBlockHash:      block.BlockHash,
+		FinalizedBlockHash: block.BlockHash,
 	}
 	// Mark it as canonical
 	if _, err := local.engineAPI.ForkchoiceUpdatedV3(local.currentState, nil); err != nil {
@@ -115,7 +122,7 @@ func (local *LocalEngine) NewBlock(block *types.Block) error {
 	return nil
 }
 
-func (local *LocalEngine) GetBlock() (*types.Block, error) {
+func (local *LocalEngine) GetBlock() (*Block, error) {
 	var random [32]byte
 	rand.Read(random[:])
 	// Trigger a new block to be built
@@ -134,12 +141,12 @@ func (local *LocalEngine) GetBlock() (*types.Block, error) {
 	}
 	time.Sleep(local.blockBuildingTimeout)
 	// Retrieve the payload
-	envelope, err := local.engineAPI.GetPayloadV4(*resp.PayloadID)
+	envelope, err := local.engineAPI.GetPayloadV3(*resp.PayloadID)
 	if err != nil {
 		return nil, err
 	}
 	// TODO this currently prevents blob transactions from working
-	return engine.ExecutableDataToBlock(*envelope.ExecutionPayload, []common.Hash{}, &common.Hash{})
+	return envelope.ExecutionPayload, nil
 }
 
 func (local *LocalEngine) LatestBlock() int {
