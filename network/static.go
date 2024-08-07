@@ -13,7 +13,7 @@ type StaticNetwork struct {
 	// TODO properly lock the peers array and callbacks array
 	port      string
 	peers     []net.Conn
-	callbacks []func(message []byte, peer int)
+	callbacks []Callback
 }
 
 func NewStaticNetwork(port string) (*StaticNetwork, error) {
@@ -38,20 +38,11 @@ func (s *StaticNetwork) Start() error {
 }
 
 func (s *StaticNetwork) loop() error {
-	for {
-		for id, conn := range s.peers {
-			buffer := make([]byte, 128)
-			// give each peer 10ms to write
-			conn.SetReadDeadline(time.Now().Add(DefaultReadDeadline))
-			if _, err := conn.Read(buffer); err != nil {
-				// handle error
-			} else {
-				for _, callback := range s.callbacks {
-					callback(buffer, id)
-				}
-			}
-		}
+	for id, conn := range s.peers {
+		conn.SetReadDeadline(time.Now().Add(DefaultReadDeadline))
+		go Listen(conn, s.callbacks, id)
 	}
+	return nil
 }
 
 func (s *StaticNetwork) AddPeer(address string) error {
@@ -78,10 +69,9 @@ func (s *StaticNetwork) WriteMsg(msg []byte) []error {
 }
 
 func (s *StaticNetwork) WriteMsgToPeer(msg []byte, peer int) error {
-	_, err := s.peers[peer].Write(msg)
-	return err
+	return WriteMsg(s.peers[peer], msg)
 }
 
-func (s *StaticNetwork) RegisterCallback(onMessage func(msg []byte, peer int)) {
+func (s *StaticNetwork) RegisterCallback(onMessage Callback) {
 	s.callbacks = append(s.callbacks, onMessage)
 }

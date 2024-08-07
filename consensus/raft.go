@@ -9,6 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// TODO make timeouts configurable
+// Verify correctness with the paper
+// Test shut down scenarios
+// Implement and test the static network
+// Add authentication to the network messages
+
 const NO_LEADER = -1
 
 type RaftServer struct {
@@ -16,7 +22,6 @@ type RaftServer struct {
 	execution engine.API
 
 	currentTerm int
-	votedFor    int // -1 if no vote yet
 
 	id            int
 	numPeers      int
@@ -39,7 +44,6 @@ func NewRaft(network network.API, execution engine.API, id int, numPeers int) (*
 		network:         network,
 		execution:       execution,
 		currentTerm:     0,
-		votedFor:        NO_LEADER,
 		id:              id,
 		currentLeader:   NO_LEADER,
 		timer:           time.NewTimer(time.Hour),
@@ -54,12 +58,12 @@ func NewRaft(network network.API, execution engine.API, id int, numPeers int) (*
 
 func (r *RaftServer) Start() error {
 	log.Info("Starting server", "id", r.id)
-	r.resetTimer()
 	go r.loop()
 	return nil
 }
 
 func (r *RaftServer) loop() {
+	r.resetTimer()
 	for {
 		if r.currentLeader == r.id {
 			r.lead()
@@ -82,7 +86,6 @@ func (r *RaftServer) follow() {
 }
 
 func (r *RaftServer) lead() {
-	// Leader
 	stopCh := make(chan struct{})
 	go func() {
 		timer := time.NewTicker(100 * time.Millisecond)

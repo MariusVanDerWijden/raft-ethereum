@@ -2,14 +2,12 @@ package network
 
 import (
 	"io"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type LocalNetwork struct {
 	inputs    []io.Reader
 	outputs   []io.Writer
-	callbacks []func(message []byte, peer int)
+	callbacks []Callback
 }
 
 // NewLocalNetwork creates a fully connected network
@@ -32,39 +30,21 @@ func NewLocalNetwork(numNodes int) []LocalNetwork {
 }
 
 func (s *LocalNetwork) Start() error {
-	// Start up the listening process
+	// Start up the listening processes
 	for id, conn := range s.inputs {
-		go func(conn io.Reader, id int) {
-			for {
-				buffer := make([]byte, 5*1024*1024)
-				n, err := conn.Read(buffer)
-				if err == nil {
-					for _, callback := range s.callbacks {
-						callback(buffer[:n], id)
-					}
-				}
-			}
-		}(conn, id)
+		go Listen(conn, s.callbacks, id)
 	}
 	return nil
 }
 
 func (s *LocalNetwork) WriteMsg(msg []byte) []error {
-	var errs []error
-	for _, conn := range s.outputs {
-		if _, err := conn.Write(msg); err != nil {
-			log.Warn("Error broadcasting", "error", err)
-			errs = append(errs, err)
-		}
-	}
-	return errs
+	return BroadcastMsg(s.outputs, msg)
 }
 
 func (s *LocalNetwork) WriteMsgToPeer(msg []byte, peer int) error {
-	_, err := s.outputs[peer].Write(msg)
-	return err
+	return WriteMsg(s.outputs[peer], msg)
 }
 
-func (s *LocalNetwork) RegisterCallback(onMessage func(msg []byte, peer int)) {
+func (s *LocalNetwork) RegisterCallback(onMessage Callback) {
 	s.callbacks = append(s.callbacks, onMessage)
 }
