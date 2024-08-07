@@ -48,8 +48,7 @@ func (r *RaftServer) handleMsg(msg []byte, peer int) {
 }
 
 func (r *RaftServer) handleVote(vote Vote, peer int) {
-	r.voteInProgress = true
-	r.currentLeader = -1
+	r.setLeader(NO_LEADER)
 	var resp VoteResp
 	if vote.Term < r.currentTerm || vote.HighestBlock < r.execution.LatestBlock() {
 		resp.Result = false
@@ -75,8 +74,7 @@ func (r *RaftServer) tallyVote(voteResp VoteResp, peer int) {
 	}
 	if r.votesForMe > (r.numPeers / 2) {
 		log.Info("I am the leader now", "id", r.id)
-		r.currentLeader = r.id
-		r.voteInProgress = false
+		r.setLeader(r.id)
 		// Send empty heartbeat to notify of election results
 		if err := r.sendHeartbeat(nil); err != nil {
 			panic(err)
@@ -95,8 +93,7 @@ func (r *RaftServer) handleHeartbeat(heartbeat Heartbeat, peer int) error {
 		b, _ := resp.MarshalMessage()
 		return r.network.WriteMsgToPeer(b, peer)
 	}
-	r.currentLeader = heartbeat.LeaderID
-	r.voteInProgress = false
+	r.setLeader(heartbeat.LeaderID)
 	r.resetTimer()
 	if len(heartbeat.Block) != 0 {
 		block := new(engine.Block)

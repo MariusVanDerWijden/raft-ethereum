@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const NO_LEADER = -1
+
 type RaftServer struct {
 	network   network.API
 	execution engine.API
@@ -37,9 +39,9 @@ func NewRaft(network network.API, execution engine.API, id int, numPeers int) (*
 		network:         network,
 		execution:       execution,
 		currentTerm:     0,
-		votedFor:        -1,
+		votedFor:        NO_LEADER,
 		id:              id,
-		currentLeader:   -1,
+		currentLeader:   NO_LEADER,
 		timer:           time.NewTimer(time.Hour),
 		numPeers:        numPeers,
 		stateTransition: make(chan struct{}),
@@ -134,8 +136,7 @@ func (r *RaftServer) forceElection() error {
 		return nil
 	}
 	log.Info("Forcing an Election", "id", r.id)
-	r.voteInProgress = true
-	r.currentLeader = -1
+	r.setLeader(NO_LEADER)
 	// Assemble vote for self
 	vote := Vote{
 		Term:         r.currentTerm + 1,
@@ -175,4 +176,14 @@ func (r *RaftServer) sendHeartbeat(block *engine.Block) error {
 		return errs[0]
 	}
 	return nil
+}
+
+func (r *RaftServer) setLeader(leader int) {
+	if leader == NO_LEADER {
+		r.voteInProgress = true
+		r.currentLeader = NO_LEADER
+	} else {
+		r.voteInProgress = false
+		r.currentLeader = leader
+	}
 }
