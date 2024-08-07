@@ -179,11 +179,10 @@ func (r *RaftServer) sendHeartbeat(block *engine.Block) error {
 }
 
 func (r *RaftServer) setLeader(leader int) {
+	r.currentLeader = leader
 	if leader == NO_LEADER {
 		r.voteInProgress = true
-		r.currentLeader = NO_LEADER
 	} else {
 		r.voteInProgress = false
-		r.currentLeader = leader
 	}
 }
